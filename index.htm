@@ -1,0 +1,440 @@
+  
+
+
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Jake</title>
+  <style>
+    :root{
+      --bg: #FF5F05;        /* initial background */ 
+      --text: #13294B;
+      --card-bg: #ffffff;
+      --accent: #0969da;
+      --radius: 12px;
+    }
+
+    /* page layout */
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);box-sizing:border-box;}
+    /* ensure Hello is 1 inch from the top */
+    body { padding-top: 1in; }
+
+    .wrap{min-height:calc(100% - 1in);display:flex;align-items:flex-start;justify-content:center;padding:0 24px 40px;}
+    .card{width:min(820px,92%);text-align:center;position:relative;z-index:1;}
+
+    /* Hello box */
+    .hello {
+      display:inline-block;
+      background:var(--card-bg);
+      padding:18px 28px;
+      border-radius:var(--radius);
+      box-shadow:0 8px 20px rgba(0,0,0,0.08);
+      margin:0 auto;
+      min-width:260px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .hello h1{
+      margin:0;
+      color:var(--text);
+      font-size:48px;
+      line-height:1;
+      font-weight:700;
+      letter-spacing:-0.5px;
+    }
+
+    /* Button directly below the hello box (just below) */
+    .action{margin-top:8px;}
+    .btn{
+      border:0;
+      background: linear-gradient(180deg,var(--accent),#0956c4);
+      color:#fff;
+      padding:0.65rem 1.15rem;
+      font-size:16px;
+      border-radius:10px;
+      cursor:pointer;
+      box-shadow:0 8px 20px rgba(0,0,0,0.12);
+    }
+    .btn:active{transform:translateY(1px);}
+
+    /* floating phrase
+       - left will be assigned from JS (center over image)
+       - animate transform so we don't fight explicit left values set by JS
+       - --slide-distance controls how far it travels; JS updates per-phrase for viewport adapt
+       - animation is only applied when the 'playing' class is added from JS to avoid race issues */
+    .float-phrase {
+      position:fixed;
+      left:50%; /* will be updated by JS to the image center */
+      top:8px;  /* initial fallback; precise top is set in JS */
+      font-size:34px;
+      font-weight:800;
+      color:rgba(255,255,255,0.98);
+      -webkit-text-stroke: 1px rgba(0,0,0,0.25);
+      text-shadow: 0 6px 14px rgba(0,0,0,0.35);
+      white-space:nowrap;
+      z-index:5000; /* above the image */
+      pointer-events:none;
+      /* default slide distance (will be overridden by JS per-element), use vw for natural scaling */
+      --slide-distance: 250vw;
+      /* Start off-left using transform; animation also works on transform and references --slide-distance */
+      transform: translateX(calc(-1 * var(--slide-distance))) translateY(0) scale(1);
+      max-width: 90vw;
+      text-align: center;
+      padding: 2px 8px;
+      box-sizing: border-box;
+      will-change: transform, opacity;
+      opacity: 0; /* hidden until we add playing class */
+    }
+
+    /* slowed phrase animation: doubled duration (half speed) */
+    .float-phrase.playing {
+      animation: slide-across 8400ms linear forwards;
+      opacity: 1;
+    }
+
+    @keyframes slide-across {
+      /* transform-only animation: element's left anchor remains fixed (set by JS) */
+      0%   { opacity: 0; transform: translateX(calc(-1 * var(--slide-distance))) scale(1); }
+      6%   { opacity: 1; }
+      50%  { transform: translateX(0) scale(1.02); }   /* centered at the anchor */
+      100% { opacity: 0; transform: translateX(calc(var(--slide-distance))) scale(0.98); } /* exit to right */
+    }
+
+    /* floating image */
+    .float-img {
+      position:fixed;
+      left:50%;
+      top:50%;
+      transform: translate(-50%, -50%) scale(0.85);
+      /* responsive sizing: constrain by viewport */
+      width: min(60vw, 720px);
+      height: auto;
+      max-height: 75vh;
+      border-radius:10px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+      z-index:4000;
+      opacity:0;
+      pointer-events:none;
+      /* match image animation duration to phrase so they stay in sync (half speed applied) */
+      animation: img-appear 8400ms ease forwards;
+      object-fit:cover;
+      background: #111;
+      touch-action: none;
+      visibility: visible;
+    }
+
+    /* If the image is marked ready (loaded), stop the long animation and ensure it is visible.
+       This avoids cases where the element is added after the animation timeline has progressed. */
+    .float-img[data-ready="true"] {
+      animation: none !important;
+      opacity: 1 !important;
+    }
+
+    @keyframes img-appear {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); filter: blur(6px) saturate(.8); }
+      12% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0) saturate(1.05); }
+      70% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); filter: blur(2px) saturate(.9); }
+    }
+
+    /* dark/background state */
+    body.dark {
+      --bg: #13294B;     /* background after click */
+      --text: #ffffff;
+    }
+    body.dark .hello { background: #ffffff; } /* keep hello white on dark background */
+
+    @media (max-width:520px){
+      .float-phrase { font-size:22px; }
+      .float-img { width: min(90vw, 520px); max-height:55vh; }
+      .hello h1{font-size:34px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="main" aria-labelledby="hello-title">
+      <div class="hello" aria-hidden="false">
+        <center><h1 id="hello-title">Hello Jakey</h1></center>center>
+         <center> <div id="hello-tike">A New Experience Every Time<br> You Press the Button</div></center>
+      </div>
+
+      <div class="action" aria-hidden="false">
+       <center>  <button id="surpriseBtn" class="btn" aria-controls="result" aria-expanded="false">Click Here</button></center>center>
+      </div>
+    </div>
+  </div>
+
+  <!-- hidden fallback result container (not used for floating effect but left for accessibility) -->
+  <div id="result" style="display:none" aria-live="polite"></div>
+
+  <script>
+    (function(){
+      // exact phrases requested
+      const phrases = [
+        "You Are a Baby",
+        "Fa Fa Foo Foo",
+        "PSK Forever",
+        "Frick You",
+        "Chipotle for Life",
+        "DJ Jake Rocks Red Lion",
+        "Never Stop Dabbing",
+        "So Much Rizz",
+        "Wicked Soldiers Rock",
+        "I Went to New Trier",
+        "Beep Beep Bop Bee Boo",
+        "Rocket In Your Pocket",
+        "It Smells Like Cows",
+        "Wow Wow Wubbzy",
+        "There's a New Thing, It's Called Nothing",
+        "Stampylong Nose Forever",
+        "Chicken Jocky",
+         "It Smells Like Cows",
+         "Great Success ",
+        "Dada Loves Jake",
+        "Jakey The Jake !",
+        "Drake > Kendrick",
+        "What if Jake Got a Low Taper Fade",
+        "Arc: Survival Evolved Rules",
+        "Baginky!",
+        "I Love Cheeks"
+      ];
+
+      // curated "dank" meme images (replace these URLs with your preferred sources if needed).
+      // NOTE: Some hosts may block hotlinking or return redirects — we include a reliable fallback (picsum.photos)
+      const images = [
+        "https://cleanmemes.com/wp-content/uploads/2026/01/img_4363.jpg",
+        "https://gratisography.com/wp-content/uploads/2024/10/gratisography-happy-cone-800x525.jpg",
+        "https://gratisography.com/wp-content/uploads/2024/01/gratisography-cyber-kitty-800x525.jpg",
+        "https://gratisography.com/wp-content/uploads/2023/05/gratisography-wedding-dog-free-stock-photo-800x525.jpg",
+        "https://gratisography.com/wp-content/uploads/2019/06/gratisography-bunny-newspaper-free-stock-photo-800x525.jpg",
+        "https://gratisography.com/wp-content/uploads/2019/09/gratisography-paper-mache-free-stock-photo-800x525.jpg",
+        "https://gratisography.com/wp-content/uploads/2020/07/gratisography-tiny-big-head-free-stock-photo-800x525.jpg",
+        "https://gratisography.com/wp-content/uploads/2021/06/gratisography-donut-fingers-hands-free-stock-photo-800x525.jpg",
+        "https://gratisography.com/wp-content/uploads/2022/06/gratisography-bath-snorkeling-free-stock-photo-1170x780.jpg",
+        "https://gratisography.com/wp-content/uploads/2023/02/gratisography-13-mustache-girl-free-stock-photo-800x525.jpg",
+        "https://images.pexels.com/photos/7395916/pexels-photo-7395916.jpeg",
+        "https://gratisography.com/wp-content/uploads/2018/05/gratisography-104H-free-stock-photo-800x525.jpg",
+        "https://gratisography.com/wp-content/uploads/2018/05/gratisography-330H-free-stock-photo-800x525.jpg",
+        "https://images.pexels.com/photos/35756665/pexels-photo-35756665.jpeg",
+        "https://images.pexels.com/photos/6156550/pexels-photo-6156550.jpeg",
+        "https://images.pexels.com/photos/5541007/pexels-photo-5541007.jpeg",
+        "https://images.pexels.com/photos/4118631/pexels-photo-4118631.jpeg",
+        "https://hips.hearstapps.com/hmg-prod/images/borat-2-1603300657.jpg",
+                "https://static.wikia.nocookie.net/thebackyardigansencyclopedia/images/6/6d/The_Backyardigans_Austin_Nickelodeon_Nick_Jr._Character_Image.png,
+                "https://static.wikia.nocookie.net/alvin/images/1/15/Alvin_and_the_Chipmunks_New.jpg",
+                "https://pyleusa.com/cdn/shop/files/SLRWMC60_4296f8a9-e6c9-4ce4-bc9c-ac0890ecc13d.jpg",
+                "https://miro.medium.com/1*EisB6gzCzo56jrAUv6MXZQ.jpeg",
+                        "https://thumbs.dreamstime.com/b/karate-punch-5929099.jpg",
+                        "https://ichef.bbci.co.uk/images/ic/1024x576/p05q86zc.jpg",
+        "https://gratisography.com/wp-content/uploads/2019/05/gratisography-tiny-man-free-stock-photo-800x525.jpg"
+      ];
+
+      // reliable fallback images (picsum). We'll try these if chosen image fails to load.
+      const fallback = [
+        "https://picsum.photos/800/600?random=1",
+        "https://picsum.photos/900/700?random=2",
+        "https://picsum.photos/700/500?random=3"
+      ];
+
+      // helper to pick random element
+ function rand(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+      const btn = document.getElementById('surpriseBtn');
+      const card = document.querySelector('.card');
+      let switched = false;
+      let restoreTimer = null;
+      let cleanupTimer = null;
+
+      // map to keep per-phrase resize handlers so we can remove them on cleanup
+      const resizeHandlers = new WeakMap();
+
+      function cleanupFloat(){
+        const prevPhrase = document.querySelectorAll('.float-phrase');
+        const prevImg = document.querySelectorAll('.float-img');
+        prevPhrase.forEach(n => {
+          const h = resizeHandlers.get(n);
+          if (h) window.removeEventListener('resize', h);
+          n.remove();
+        });
+        prevImg.forEach(n => n.remove());
+      }
+
+      function restoreInitial() {
+        // clear any pending timers
+        if (restoreTimer) { clearTimeout(restoreTimer); restoreTimer = null; }
+        if (cleanupTimer) { clearTimeout(cleanupTimer); cleanupTimer = null; }
+
+        // remove floating elements and dark state, show card again
+        cleanupFloat();
+        if (card) card.style.display = '';
+        document.body.classList.remove('dark');
+        switched = false;
+      }
+
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+
+        // hide the Hello box & button (hide the white section instead of removing)
+        if (card) {
+          card.style.display = 'none';
+        }
+
+        // switch background to dark
+        if(!switched){
+          document.body.classList.add('dark');
+          switched = true;
+        }
+
+        // clear previous timers and floats
+        if (restoreTimer) { clearTimeout(restoreTimer); restoreTimer = null; }
+        if (cleanupTimer) { clearTimeout(cleanupTimer); cleanupTimer = null; }
+        cleanupFloat();
+
+        // create and append the image (centered)
+        const imgUrl = rand(images);
+        const imgEl = document.createElement('img');
+        imgEl.className = 'float-img';
+        imgEl.src = imgUrl;
+        imgEl.alt = "Dank meme";
+        // prefer eager loading so we see it quickly
+        imgEl.loading = 'eager';
+        // keep track of retries
+        let retries = 0;
+        const maxRetries = 3;
+
+        // error handler — try fallback images if host blocks or image 404s
+        imgEl.addEventListener('error', function handleError() {
+          console.warn('float-img load error, retrying. src=', imgEl.src);
+          retries++;
+          if (retries <= maxRetries) {
+            // try another image (mixing in fallback to increase chance)
+            const nextSrc = retries === maxRetries ? rand(fallback) : rand(images.concat(fallback));
+            imgEl.src = nextSrc;
+          } else {
+            // last resort: show a solid color placeholder (1x1 PNG data URI) to make sure element exists,
+            // then mark ready so UI doesn't stay hidden.
+            imgEl.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
+            imgEl.removeEventListener('error', handleError);
+          }
+        }, { once: false });
+
+        // when image loads, position the phrase and ensure the image is shown.
+        imgEl.addEventListener('load', function onLoad() {
+          // mark ready to bypass the long CSS animation that may have started earlier
+          imgEl.setAttribute('data-ready', 'true');
+          // position phrase (called below) will use getBoundingClientRect on the loaded image
+          positionAndShowPhrase();
+        }, { once: true });
+
+        document.body.appendChild(imgEl);
+
+        // create phrase overlay and append (will be positioned once image has layout)
+        const phraseText = rand(phrases);
+        const phraseEl = document.createElement('div');
+        phraseEl.className = 'float-phrase';
+        phraseEl.textContent = phraseText;
+        // set white-space to normal on very small viewports so long phrases wrap
+        if (window.innerWidth < 420) phraseEl.style.whiteSpace = 'normal';
+        document.body.appendChild(phraseEl);
+
+        // function to compute and set slide distance based on viewport width (longer distance on wide screens)
+        function updateSlideDistance() {
+          const vw = window.innerWidth;
+          // multiplier controls how many viewport widths the phrase will travel.
+          // The result is expressed in vw to scale naturally with viewport.
+          // base multiplier: for small screens travel ~1.6x width, large screens increase up to ~3.5x
+          const multiplier = Math.min(3.5, Math.max(1.6, vw / 1200 * 2.4));
+          const distanceVw = Math.round(multiplier * 100); // multiplier * 100vw
+          phraseEl.style.setProperty('--slide-distance', distanceVw + 'vw');
+        }
+
+        // position phrase above the image when image is ready
+        function positionAndShowPhrase(){
+          // guard in case image was removed
+          if (!document.body.contains(imgEl) || !document.body.contains(phraseEl)) return;
+          const imgRect = imgEl.getBoundingClientRect();
+
+          // compute top such that the phrase sits above the image, with small margins,
+          // but clamp so it doesn't go off-screen
+          // ensure phrase has layout (offsetHeight) for correct clamping
+          const phraseHeight = phraseEl.offsetHeight || 28;
+          let topPx = imgRect.top - phraseHeight - 12;
+          topPx = Math.max(8, Math.min(topPx, window.innerHeight - phraseHeight - 8));
+          phraseEl.style.top = topPx + 'px';
+
+          // compute center X of the image and convert to viewport percentage so the phrase anchors above image
+          const centerX = imgRect.left + imgRect.width / 2;
+          const leftPercent = (centerX / window.innerWidth) * 100;
+          phraseEl.style.left = leftPercent + '%';
+
+          // update slide distance (depends on current viewport)
+          updateSlideDistance();
+
+          // start the animation by adding the playing class (avoids inline opacity races)
+          // force a reflow so the browser picks up the updated --slide-distance before the animation starts
+          // (reading offsetWidth triggers a reflow)
+          void phraseEl.offsetWidth;
+          phraseEl.classList.add('playing');
+        }
+
+        // attach a resize handler so the slide distance updates while animation is running if the user resizes
+        const resizeHandler = () => {
+          // update distance and re-position horizontally if image layout changed
+          updateSlideDistance();
+          if (document.body.contains(imgEl) && document.body.contains(phraseEl)) {
+            const imgRect = imgEl.getBoundingClientRect();
+            const centerX = imgRect.left + imgRect.width / 2;
+            const leftPercent = (centerX / window.innerWidth) * 100;
+            phraseEl.style.left = leftPercent + '%';
+            // also recompute top
+            const phraseHeight = phraseEl.offsetHeight || 28;
+            let topPx = imgRect.top - phraseHeight - 12;
+            topPx = Math.max(8, Math.min(topPx, window.innerHeight - phraseHeight - 8));
+            phraseEl.style.top = topPx + 'px';
+          }
+        };
+        // store handler so cleanup can remove it
+        resizeHandlers.set(phraseEl, resizeHandler);
+        window.addEventListener('resize', resizeHandler);
+
+        // if image already cached/complete, position immediately
+        if (imgEl.complete && imgEl.naturalWidth !== 0) {
+          // mark ready and position
+          imgEl.setAttribute('data-ready', 'true');
+          positionAndShowPhrase();
+        } else {
+          // fallback in case load event doesn't fire quickly
+          setTimeout(positionAndShowPhrase, 300);
+        }
+
+        // Schedule cleanup of floating elements shortly after animation ends (now doubled)
+        cleanupTimer = setTimeout(() => {
+          cleanupFloat();
+          cleanupTimer = null;
+        }, 8600); // slightly after 8400ms animation
+
+        // After ~9s restore the initial page (show Hello Jake again and reset background)
+        restoreTimer = setTimeout(() => {
+          restoreInitial();
+        }, 9000);
+      });
+
+      // allow clicking outside to clear animations early and restore
+      document.addEventListener('click', function(e){
+        // if user clicks anywhere, restore immediately
+        restoreInitial();
+      });
+
+      // keyboard escape to clear and restore
+      document.addEventListener('keydown', function(e){
+        if(e.key === 'Escape') restoreInitial();
+      });
+    })();
+  </script>
+</body>
+</html>
+
+
